@@ -1,0 +1,788 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Inventario</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .header {
+            background-color: #72c27a;
+            color: white;
+            padding: 10px;
+        }
+        .header a {
+            color: white;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+        .filters {
+            background-color: #eaf7eb;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .table-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+            
+        }
+        .footer {
+            background-color: #72c27a;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: auto; /* Asegura que el footer esté al final */
+            width: 100%; /* Asegura que el footer ocupe todo el ancho */
+            border-radius: 0; /* Elimina el borde redondeado */
+            box-sizing: border-box; /* Asegura que el padding no afecte el ancho */
+        }
+        
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+            <a href="/">
+                <img src="{% static 'gestion/img/logo.png' %}" alt="Logo" style="height: 50px;">
+            </a>
+            <h1 class="m-0">Gestión de Inventario</h1>
+        </div>
+        <div>
+            <!-- Botón para abrir el modal -->
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#contactoModal">
+            Contacto
+            </button>
+            
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#ventasModal">
+                <i class="bi bi-cart"></i> Ingresar venta
+            </button>
+            {% if es_admin %} 
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearUsuarioModal">
+                <i class="bi bi-person-plus"></i> Crear Usuarios
+            </button>
+            {% endif %}            
+            <a href="#"><i class="bi bi-person-circle"></i> {{ user.username }}</a>
+            <a href="{% url 'logout' %}" class="btn btn-danger"><i class="bi bi-box-arrow-right"></i> Salir</a>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <!-- Filtros -->
+        <form class="d-flex gap-3 mb-3" method="GET" action="{% url 'gestion_filtrada' %}">
+            <select class="form-select" id="categoria" name="categoria" required>
+                <option value="Mostrar todos" {% if categoria_seleccionada == 'Mostrar todos' %}selected{% endif %}>Mostrar todos</option>
+                {% for categoria in categorias %}
+                    <option value="{{ categoria }}" {% if categoria == categoria_seleccionada %}selected{% endif %}>
+                        {{ categoria }}
+                    </option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-success" type="submit">Buscar</button>
+            {% if es_admin %}                
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nuevoProductoModal">
+                    Ingresar Producto
+                </button>
+            {% endif %}
+
+            <!-- Reportes pdf/excel -->
+            <a href="{% url 'reporte_pdf' %}?categoria={{ categoria_seleccionada }}" class="btn btn-danger">
+                <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+            </a>
+            <a href="{% url 'reporte_excel' %}?categoria={{ categoria_seleccionada }}" class="btn btn-success">
+                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+            </a>
+
+        </form>
+                            
+        </div>
+
+                <!-- Tabla -->
+        <div class="table-container">
+            <table class="table table-striped">
+                <thead class="table-success">
+                    <tr>
+                        <th>Nombre Producto</th>
+                        <th>Precio Unitario</th>
+                        <th>Fecha Vencimiento</th>
+                        <th>Stock</th>
+                        <th>Categoría</th>
+                        <th>Editar / Eliminar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for producto in productos %}
+                        <tr>
+                            <td>{{ producto.nombre }}</td>
+                            <td>{{ producto.precio_unitario }}</td>
+                            <td>{{ producto.fecha_vencimiento }}</td>
+                            <td>{{ producto.stock }}</td>
+                            <td>{{ producto.categoria }}</td>
+                            <td>
+                                {% if es_admin %}                                     
+                                    <a href="#" class="btn btn-warning btn-sm editar-btn" data-producto-id="{{ producto.id }}" 
+                                        data-nombre="{{ producto.nombre }}" 
+                                        data-fecha-vencimiento="{{ producto.fecha_vencimiento|date:'Y-m-d' }}" 
+                                        data-categoria="{{ producto.categoria }}">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>                                
+                                    <a href="#" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#confirmarEliminacionModal" data-producto-id="{{ producto.id }}">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                {% endif %}
+                            </td>                            
+                        </tr>
+                    {% endfor %}
+                </tbody>                
+            </table>
+        </div>
+    </div> 
+
+    <!-- Modal de Formulario de Contacto -->
+
+    <div class="modal fade" id="contactoModal" tabindex="-1" aria-labelledby="contactoModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{% url 'enviar_contacto' %}">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="contactoModalLabel">Formulario de Contacto</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="nombre" class="form-label">Nombre</label>
+                            <input type="text" name="nombre" class="form-control" id="nombre" placeholder="Tu nombre" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="correo" class="form-label">Correo Electrónico</label>
+                            <input type="email" name="correo" class="form-control" id="correo" placeholder="tucorreo@ejemplo.com" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mensaje" class="form-label">Mensaje</label>
+                            <textarea name="mensaje" class="form-control" id="mensaje" rows="4" placeholder="Escribe tu mensaje aquí" required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Enviar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+
+    <!-- Modal para Crear Usuarios -->
+    <div class="modal fade" id="crearUsuarioModal" tabindex="-1" aria-labelledby="crearUsuarioLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{% url 'crear_usuario' %}">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="crearUsuarioLabel">Crear Usuario</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Nombre de Usuario</label>
+                            <input type="text" name="username" class="form-control" id="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Contraseña</label>
+                            <input type="password" name="password" class="form-control" id="password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="grupo" class="form-label">Grupo</label>
+                            <select name="grupo" id="grupo" class="form-select" required>
+                                <option value="Administradores">Administradores</option>
+                                <option value="Empleados">Empleados</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-success">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+        <!-- Modal para Editar Producto -->
+    <div class="modal fade" id="editarProductoModal" tabindex="-1" aria-labelledby="editarProductoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editarProductoLabel">Editar Producto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <form id="formEditarProducto" method="post">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <input type="hidden" id="productoId" name="productoId">
+                        <div class="mb-3">
+                            <label for="nombreProductoEditar" class="form-label">Nombre Producto</label>
+                            <input type="text" class="form-control" id="nombreProductoEditar" name="nombreProducto" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="fechaVencimientoEditar" class="form-label">Fecha de Vencimiento</label>
+                            <input type="date" class="form-control" id="fechaVencimientoEditar" name="fechaVencimiento" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="categoriaEditar" class="form-label">Categoría</label>
+                            <select class="form-select" id="categoriaEditar" name="categoria" required>
+                                <option value="">Seleccione una categoría</option>
+                                {% for categoria in categorias %}
+                                    <option value="{{ categoria }}">{{ categoria }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-success">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Ingresar Producto -->
+    <div class="modal fade" id="nuevoProductoModal" tabindex="-1" aria-labelledby="nuevoProductoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="nuevoProductoLabel">Ingresar Producto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <form id="formProducto" method="post">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="nombreProducto" class="form-label">Nombre Producto</label>
+                            <input type="text" class="form-control" id="nombreProducto" name="nombreProducto" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="valorCompra" class="form-label">Valor de la Compra</label>
+                            <input type="number" class="form-control" id="valorCompra" name="valorCompra" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="unidades" class="form-label">Unidades</label>
+                            <input type="number" class="form-control" id="unidades" name="unidades" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="porcentajeGanancia" class="form-label">Porcentaje de Ganancia</label>
+                            <input type="number" class="form-control" id="porcentajeGanancia" name="porcentajeGanancia" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="fechaVencimientoEditar" class="form-label">Fecha de Vencimiento</label>
+                            <input type="date" class="form-control" id="fechaVencimientoEditar" name="fechaVencimiento" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="categoria" class="form-label">Categoría</label>
+                            <select class="form-select" id="categoria" name="categoria" required>
+                                <option value="">Seleccione una categoría</option>
+                                {% for categoria in categorias %}
+                                    <option value="{{ categoria }}">{{ categoria }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Volver</button>
+                        <button type="submit" class="btn btn-success">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+   <!-- Modal para Ingresar Venta -->
+   <div class="modal fade" id="ventasModal" tabindex="-1" aria-labelledby="ventasModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ventasModalLabel">Ingresar Venta</h5>
+                </div>
+                <form id="formVenta" method="post" action="{% url 'procesar_venta' %}">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div id="productosContainer">
+                            <!-- Producto Base -->
+                            <div class="row mb-3 producto-item">
+                                <div class="col-6">
+                                    <label for="nombreProducto1" class="form-label">Nombre Producto</label>
+                                    <select class="form-select nombre-producto" name="productos[0][nombre]" required>
+                                        <option value="">Seleccione un producto</option>
+                                        {% for producto in productos %}
+                                            <option value="{{ producto.id }}" data-precio="{{ producto.precio_unitario }}">
+                                                {{ producto.nombre }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-2">
+                                    <label for="cantidadProducto1" class="form-label">Cantidad</label>
+                                    <input type="number" class="form-control cantidad-producto" name="productos[0][cantidad]" min="1" required>
+                                </div>
+                                <div class="col-2">
+                                    <label for="totalProducto1" class="form-label">Total</label>
+                                    <input type="text" class="form-control total-producto" readonly>
+                                </div>
+                                <div class="col-2 d-flex align-items-end">
+                                    <button type="button" class="btn btn-danger eliminar-producto">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary mb-3" id="agregarProducto">
+                            <i class="bi bi-plus-circle"></i> Agregar Producto
+                        </button>
+                    </div>
+                    <div class="mb-3">
+                        <label for="totalVenta" class="form-label">Total Venta</label>
+                        <input type="text" class="form-control" id="totalVenta" name="totalVenta" readonly>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Volver</button>
+                        <button type="submit" class="btn btn-success">Realizar Venta</button>
+                    </div>
+                    <div id="mensajeError" class="alert alert-danger" style="display: none;">
+                        La cantidad solicitada supera el stock disponible. Stock disponible: <span id="stockDisponible"></span>
+                    </div>
+                </form>                                 
+            </div>
+        </div>
+    </div>
+
+
+
+
+        <!-- Modal de Confirmación para Eliminar Producto -->
+    <div class="modal fade" id="confirmarEliminacionModal" tabindex="-1" aria-labelledby="confirmarEliminacionLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmarEliminacionLabel">¿Desea eliminar este producto?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Está a punto de eliminar un producto. ¿Está seguro de que desea continuar?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="confirmarEliminarBtn">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- reporte.html -->
+<form method="get" action="{% url 'reporte_pdf' %}">
+    <label for="categoria">Filtrar por categoría:</label>
+    <select name="categoria" id="categoria">
+        <option value="Mostrar todos">Mostrar todos</option>
+        <option value="Lacteos">Lacteos</option>
+        <option value="Embutidos">Embutidos</option>
+        <option value="Rotiseria">Rotiseria</option>
+        <option value="Limpieza">Limpieza</option>
+        <option value="Congelados">Congelados</option>
+        <option value="Confites">Confites</option>
+        <option value="Panaderia">Panaderia</option>
+        <option value="Snacks">Snacks</option>
+        <option value="Dulces">Dulces</option>
+        <option value="Bebidas">Bebidas</option>
+        <option value="Jugos">Jugos</option>
+ 
+    </select>
+    <button type="submit">Generar reporte PDF</button>
+</form>
+
+<!-- reporte.html -->
+<form method="get" action="{% url 'reporte_excel' %}">
+    <label for="categoria">Filtrar por categoría:</label>
+    <select name="categoria" id="categoria">
+        <option value="Mostrar todos">Mostrar todos</option>
+        <option value="Mostrar todos">Mostrar todos</option>
+        <option value="Lacteos">Lacteos</option>
+        <option value="Embutidos">Embutidos</option>
+        <option value="Rotiseria">Rotiseria</option>
+        <option value="Limpieza">Limpieza</option>
+        <option value="Congelados">Congelados</option>
+        <option value="Confites">Confites</option>
+        <option value="Panaderia">Panaderia</option>
+        <option value="Snacks">Snacks</option>
+        <option value="Dulces">Dulces</option>
+        <option value="Bebidas">Bebidas</option>
+        <option value="Jugos">Jugos</option>
+
+    </select>
+    <button type="submit">Generar reporte Excel</button>
+</form>
+
+
+
+
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>&copy; 2024 Gestión de Inventario. Todos los derechos reservados.</p>
+    </div>
+    <!-- JavaScript -->
+    <script>
+        document.getElementById("formVenta").addEventListener("submit", function (e) {
+            e.preventDefault();
+
+            const formData = new FormData();
+            const productos = [];
+            const cantidades = [];
+
+            document.querySelectorAll(".producto-item").forEach(row => {
+                const productoId = row.querySelector(".nombre-producto").value;
+                const cantidad = row.querySelector(".cantidad-producto").value;
+
+                if (productoId && cantidad) {
+                    productos.push(productoId);  // Guarda el ID del producto
+                    cantidades.push(cantidad);   // Guarda la cantidad
+                }
+            });
+
+            // Enviar cada producto y cantidad por separado
+            productos.forEach((id, index) => {
+                formData.append(`productos[]`, id);
+                formData.append(`cantidades[]`, cantidades[index]);
+            });
+
+            fetch("{% url 'procesar_venta' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload(); // Recargar la página para reflejar cambios
+                } else {
+                    alert(data.error);
+                }
+            })
+            .catch(error => console.error("Error al procesar la venta:", error));
+        });
+
+
+
+
+
+
+        // Ingreso de venta
+        document.addEventListener("DOMContentLoaded", function () {
+            const productosContainer = document.getElementById("productosContainer");
+            const totalVentaInput = document.getElementById("totalVenta");
+            const mensajeError = document.getElementById("mensajeError");
+            const stockDisponible = document.getElementById("stockDisponible");
+
+            // Eliminar filas existentes al cargar
+            productosContainer.innerHTML = "";
+
+            // Inicialmente ocultar el contenedor de productos
+            productosContainer.style.display = "none";
+
+            // Función para verificar y actualizar el stock
+            function verificarStock(row) {
+                const productoId = row.querySelector(".nombre-producto").value;
+                const cantidad = parseInt(row.querySelector(".cantidad-producto").value || 0);
+
+                if (productoId) {
+                    fetch(`/verificar-stock/${productoId}/`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const stock = data.stock;
+                            if (cantidad > stock) {
+                                mensajeError.style.display = "block";
+                                stockDisponible.textContent = stock;
+                                row.querySelector(".cantidad-producto").classList.add("is-invalid");
+                            } else {
+                                mensajeError.style.display = "none";
+                                row.querySelector(".cantidad-producto").classList.remove("is-invalid");
+                            }
+                        })
+                        .catch(error => console.error("Error al obtener stock:", error));
+                }
+            }
+            
+
+            // Calcular el total de un producto
+            function calcularTotalProducto(row) {
+                const precio = parseFloat(row.querySelector(".nombre-producto option:checked").dataset.precio || 0);
+                const cantidad = parseInt(row.querySelector(".cantidad-producto").value || 0);
+                const total = precio * cantidad;
+                row.querySelector(".total-producto").value = total.toFixed(2);
+                calcularTotalVenta();
+            }
+
+            // Calcular el total de la venta
+            function calcularTotalVenta() {
+                let totalVenta = 0;
+                document.querySelectorAll(".producto-item").forEach(row => {
+                    totalVenta += parseFloat(row.querySelector(".total-producto").value || 0);
+                });
+                totalVentaInput.value = totalVenta.toFixed(2);
+            }
+
+            // Verificar el stock y actualizarlo después de agregar o modificar un producto
+            function actualizarStock() {
+                const productos = document.querySelectorAll(".producto-item");
+                productos.forEach(row => {
+                    verificarStock(row);
+                });
+            }
+
+            // Agregar un nuevo producto al formulario
+            let contadorProductos = 1;
+
+            document.getElementById("agregarProducto").addEventListener("click", function () {
+                // Mostrar el contenedor si es la primera vez que se agrega un producto
+                if (productosContainer.style.display === "none") {
+                    productosContainer.style.display = "block";
+                }
+
+                // Crear nueva fila para producto
+                let nuevaFila = document.createElement("div");
+                nuevaFila.classList.add("row", "mb-3", "producto-item");
+
+                nuevaFila.innerHTML = `
+                    <div class="col-6">
+                        <label for="nombreProducto${contadorProductos}" class="form-label">Nombre Producto</label>
+                        <select class="form-select nombre-producto" name="productos[${contadorProductos}][nombre]" required>
+                            <option value="">Seleccione un producto</option>
+                            {% for producto in productos %}
+                                <option value="{{ producto.id }}" data-precio="{{ producto.precio_unitario }}">
+                                    {{ producto.nombre }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-2">
+                        <label for="cantidadProducto${contadorProductos}" class="form-label">Cantidad</label>
+                        <input type="number" class="form-control cantidad-producto" name="productos[${contadorProductos}][cantidad]" min="1" required>
+                    </div>
+                    <div class="col-2">
+                        <label for="totalProducto${contadorProductos}" class="form-label">Total</label>
+                        <input type="text" class="form-control total-producto" readonly>
+                    </div>
+                    <div class="col-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-danger eliminar-producto">
+                            <i class="bi bi-trash"></i> Eliminar
+                        </button>
+                    </div>
+                `;
+
+                productosContainer.appendChild(nuevaFila);
+                contadorProductos++;
+
+                // Actualizar el stock y los totales
+                actualizarStock();
+            });
+
+            // Eventos dinámicos para recalcular los totales y verificar el stock
+            productosContainer.addEventListener("change", function (e) {
+                if (e.target.matches(".nombre-producto, .cantidad-producto")) {
+                    calcularTotalProducto(e.target.closest(".producto-item"));
+                    actualizarStock();
+                }
+            });
+
+            // Eliminar producto
+            productosContainer.addEventListener("click", function (e) {
+                if (e.target.closest(".eliminar-producto")) {
+                    e.target.closest(".producto-item").remove();
+                    calcularTotalVenta(); // Recalcular el total de la venta después de eliminar un producto
+
+                    // Ocultar el contenedor si no hay productos
+                    if (productosContainer.querySelectorAll(".producto-item").length === 0) {
+                        productosContainer.style.display = "none";
+                    }
+                }
+            });
+        });
+
+
+
+
+
+
+
+        //
+            // Mostrar el modal y almacenar el ID del producto
+        var productoId = null;
+        document.querySelectorAll('.btn-danger').forEach(function (button) {
+            button.addEventListener('click', function (e) {
+                productoId = e.target.closest('a').getAttribute('data-producto-id');
+            });
+        });
+
+        // Confirmar la eliminación
+        document.getElementById('confirmarEliminarBtn').addEventListener('click', function () {
+            if (productoId !== null) {
+                // Hacer una solicitud para eliminar el producto
+                fetch(`/eliminar-producto/${productoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.mensaje) {
+                        alert(data.mensaje);
+                        location.reload(); // Recargar la página para actualizar la lista
+                    } else {
+                        alert('Error al eliminar el producto');
+                    }
+                });
+
+                // Cerrar el modal
+                var modal = bootstrap.Modal.getInstance(document.getElementById('confirmarEliminacionModal'));
+                modal.hide();
+            }
+        });
+
+        // Abrir modal de edición con datos del producto
+        document.addEventListener('DOMContentLoaded', function () {
+            const editarBtns = document.querySelectorAll('.editar-btn');
+            editarBtns.forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const productoId = this.dataset.productoId;
+                    const nombre = this.dataset.nombre;
+                    const fechaVencimiento = this.dataset.fechaVencimiento;
+                    const categoria = this.dataset.categoria;
+
+                    document.getElementById('productoId').value = productoId;
+                    document.getElementById('nombreProductoEditar').value = nombre;
+                    document.getElementById('fechaVencimientoEditar').value = fechaVencimiento;
+                    document.getElementById('categoriaEditar').value = categoria;
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('editarProductoModal'));
+                    modal.show();
+                });
+            });
+        });
+
+        // Enviar la actualización del producto
+        document.getElementById('formEditarProducto').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+
+            fetch('/editar-producto/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.mensaje) {
+                    alert(data.mensaje);
+                    location.reload(); // Recargar la página para reflejar los cambios
+                } else {
+                    alert('Error al actualizar el producto');
+                }
+            });
+        });
+
+        document.getElementById('formProducto').addEventListener('submit', function (e) {
+            e.preventDefault();
+    
+            const formData = new FormData(this);
+            for (let pair of formData.entries()) {
+                console.log(pair[0]+ ': ' + pair[1]);
+            }
+            fetch('/agregar-producto/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.mensaje) {
+                    alert(data.mensaje);
+                    
+                    // Actualizar la tabla dinámicamente
+                    let tbody = document.querySelector('table tbody');
+                    // Limpiar la tabla antes de agregar nuevos productos
+                    tbody.innerHTML = '';
+                    
+                    // Añadir cada producto a la tabla
+                    data.productos.forEach(producto => {
+                        let fila = `
+                            <tr>
+                                <td>${producto.nombre}</td>
+                                <td>${producto.precio_unitario}</td>
+                                <td>${producto.fecha_vencimiento}</td>
+                                <td>${producto.stock}</td>
+                                <td>${producto.categoria}</td>
+                                <td>
+                                    <a href="#" class="btn btn-warning btn-sm"><i class="bi bi-pencil"></i></a>
+                                    <a href="#" class="btn btn-danger btn-sm"><i class="bi bi-trash"></i></a>
+                                </td>
+                            </tr>`;
+                        tbody.innerHTML += fila;
+                    });
+    
+                    // Cerrar modal de forma adecuada
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('nuevoProductoModal'));
+                    modal.hide();
+                } else {
+                    alert(data.error);
+                }
+            });
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const nuevoProductoModal = document.getElementById("nuevoProductoModal");
+
+            nuevoProductoModal.addEventListener("hidden.bs.modal", function () {
+                // Eliminar cualquier superposición residual
+                const backdrop = document.querySelector(".modal-backdrop");
+                if (backdrop) {
+                    backdrop.remove();
+                }
+                document.body.classList.remove("modal-open"); // Remueve la clase de Bootstrap
+                document.body.style.overflow = ""; // Asegúrate de que el scroll funcione correctamente
+            });
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+        const modalProducto = document.getElementById("nuevoProductoModal");
+        const formProducto = document.getElementById("formProducto");
+
+        // Resetea el formulario al cerrar el modal
+        modalProducto.addEventListener("hide.bs.modal", function () {
+            formProducto.reset(); // Resetea todos los campos del formulario
+            });
+        });
+    </script>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
